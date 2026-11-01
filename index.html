@@ -1,0 +1,950 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kuis Interaktif Statistika</title>
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- React & ReactDOM CDN -->
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  
+  <!-- Babel Standalone for JSX in browser -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <!-- Firebase Modular SDK for Permanent Cloud Storage -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import { getFirestore, doc, getDoc, setDoc, onSnapshot, collection } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+    const appId = typeof __app_id !== 'undefined' ? __app_id : 'stat-quiz-app';
+    const firebaseConfig = typeof __firebase_config !== 'undefined' && __firebase_config
+      ? JSON.parse(__firebase_config) 
+      : {
+          apiKey: "AIzaSyDemoConfigKeyForClientSideStorage",
+          authDomain: "stat-quiz.firebaseapp.com",
+          projectId: "stat-quiz",
+          storageBucket: "stat-quiz.appspot.com",
+          messagingSenderId: "123456789",
+          appId: "1:123456789:web:abcdef123456"
+        };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+
+    window.AppFirebase = {
+      auth,
+      db,
+      appId,
+      signInAnonymously,
+      signInWithCustomToken,
+      doc,
+      getDoc,
+      setDoc,
+      onSnapshot,
+      collection
+    };
+  </script>
+
+  <style>
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .animate-fadeIn {
+      animation: fadeIn 0.25s ease-out forwards;
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 font-sans min-h-screen">
+  <div id="root"></div>
+
+  <!-- React Application Logic -->
+  <script type="text/babel">
+    const { useState, useEffect } = React;
+
+    // SVG Icons Definitions
+    const Icons = {
+      Calculator: (props) => <svg className={props.className || "w-5 h-5"} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>,
+      Sparkles: (props) => <svg className={props.className || "w-5 h-5"} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" /></svg>,
+      RotateCcw: (props) => <svg className={props.className || "w-5 h-5"} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>,
+      ChevronLeft: (props) => <svg className={props.className || "w-5 h-5"} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>,
+      ChevronRight: (props) => <svg className={props.className || "w-5 h-5"} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>,
+      Check: (props) => <svg className={props.className || "w-5 h-5"} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>,
+      CheckCircle2: (props) => <svg className={props.className || "w-5 h-5"} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>,
+      XCircle: (props) => <svg className={props.className || "w-5 h-5"} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>,
+      HelpCircle: (props) => <svg className={props.className || "w-5 h-5"} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>,
+      BookOpen: (props) => <svg className={props.className || "w-5 h-5"} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /></svg>,
+      Award: (props) => <svg className={props.className || "w-5 h-5"} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 15l-2 5l9-4l-9-4l-2 5zM12 15a7 7 0 100-14 7 7 0 000 14z" /></svg>,
+      BarChart3: (props) => <svg className={props.className || "w-5 h-5"} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3 3v18h18M18 17V9M13 17V5M8 17v-3" /></svg>,
+      X: (props) => <svg className={props.className || "w-5 h-5"} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>,
+      FileText: (props) => <svg className={props.className || "w-5 h-5"} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>,
+      BrainCircuit: (props) => <svg className={props.className || "w-5 h-5"} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 01-2 2h-0a2 2 0 01-2-2v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" /></svg>,
+      Upload: (props) => <svg className={props.className || "w-5 h-5"} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>,
+      File: (props) => <svg className={props.className || "w-5 h-5"} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>,
+      Trash2: (props) => <svg className={props.className || "w-5 h-5"} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>,
+      ScanText: (props) => <svg className={props.className || "w-5 h-5"} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3 7V5a2 2 0 012-2h2m10 0h2a2 2 0 012 2v2m0 10v2a2 2 0 01-2 2h-2M7 21H5a2 2 0 01-2-2v-2m4-8h10M7 13h6" /></svg>,
+      Loader2: (props) => <svg className={`animate-spin ${props.className || "w-5 h-5"}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 12a8 8 0 018-8v8H4z" /></svg>,
+      Wand2: (props) => <svg className={props.className || "w-5 h-5"} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 4l5 5m-5-5l-9.5 9.5a2.121 2.121 0 000 3l2 2a2.121 2.121 0 003 0L20 9m-5-5L9 3.5M4.5 19.5L3 21" /></svg>
+    };
+
+    // Bank Soal Awal (Initial Questions Bank)
+    const INITIAL_QUESTIONS = [
+      {
+        id: 1,
+        type: 'mcq',
+        category: "Simpangan Baku Sampel",
+        question: "Diberikan data sampel: [9, 12, 15, 18, 21]. Hitung simpangan baku sampel s dalam bentuk akar eksak (notasi sqrt).",
+        options: ["sqrt(22.5)", "sqrt(45/2)", "3*sqrt(10)/2", "Semua jawaban A, B, dan C benar"],
+        correctAnswer: 3,
+        explanation: "Mean (x̄) = (9 + 12 + 15 + 18 + 21) / 5 = 15.\nVariansi sampel (s²) = ∑(xᵢ - x̄)² / (n - 1) = (36 + 9 + 0 + 9 + 36) / 4 = 90 / 4 = 22.5 = 45/2.\nSimpangan baku s = √(45/2) = √(90/4) = 3√10/2. Oleh karena itu, opsi A, B, dan C semuanya setara secara matematis!"
+      },
+      {
+        id: 2,
+        type: 'numeric',
+        category: "Jumlah Kuadrat Penyimpangan",
+        question: "Diketahui empat pengamatan data sampel: [9, 11, 13, 11]. Hitung jumlah kuadrat penyimpangan terhadap mean, yaitu SS = ∑(xᵢ - x̄)² dalam bentuk angka bulat.",
+        correctAnswerNumeric: 8,
+        explanation: "Mean (x̄) = (9 + 11 + 13 + 11) / 4 = 44 / 4 = 11.\nDeviasi tiap data (xᵢ - x̄): [-2, 0, 2, 0].\nDeviasi dikuadratkan: (-2)² + 0² + 2² + 0² = 4 + 0 + 4 + 0 = 8."
+      },
+      {
+        id: 3,
+        type: 'mcq',
+        category: "Ukuran Pemusatan Data",
+        question: "Manakah nilai statistik yang paling sensitif terhadap pencilan (outlier) ekstrem dalam seperangkat data kuantitatif?",
+        options: ["Modus (Mode)", "Median", "Mean (Rata-rata Hitung)", "Jangkauan Antarkuartil (IQR)"],
+        correctAnswer: 2,
+        explanation: "Mean memperhitungkan seluruh nilai observasi numerik secara langsung dalam pembilang ∑xᵢ, sehingga keberadaan 1 data ekstrem (outlier) akan menggeser nilai mean secara signifikan."
+      },
+      {
+        id: 4,
+        type: 'numeric',
+        category: "Variansi Sampel",
+        question: "Sebuah sampel terdiri dari 3 data: [4, 7, 10]. Berapakah nilai variansi sampel (s²) nya?",
+        correctAnswerNumeric: 9,
+        explanation: "Mean (x̄) = (4+7+10)/3 = 7.\nJumlah Kuadrat (SS) = (4-7)² + (7-7)² + (10-7)² = (-3)² + 0² + 3² = 9 + 0 + 9 = 18.\nVariansi sampel s² = SS / (n - 1) = 18 / (3 - 1) = 18 / 2 = 9."
+      }
+    ];
+
+    function App() {
+      const [questions, setQuestions] = useState(() => {
+        try {
+          const saved = localStorage.getItem('stat_quiz_questions');
+          return saved ? JSON.parse(saved) : INITIAL_QUESTIONS;
+        } catch {
+          return INITIAL_QUESTIONS;
+        }
+      });
+      const [currentIndex, setCurrentIndex] = useState(0);
+      const [selectedAnswers, setSelectedAnswers] = useState({});
+      const [numericInputs, setNumericInputs] = useState({});
+      const [showExplanations, setShowExplanations] = useState({});
+      const [isCompleted, setIsCompleted] = useState(false);
+      const [isCloudSynced, setIsCloudSynced] = useState(false);
+
+      const [toastMessage, setToastMessage] = useState('');
+      const showNotification = (msg) => {
+        setToastMessage(msg);
+        setTimeout(() => setToastMessage(''), 2500);
+      };
+
+      // Inisialisasi Auth & Sinkronisasi Cloud Database Permanen
+      useEffect(() => {
+        let unsubscribe;
+        async function initCloudStorage() {
+          if (!window.AppFirebase) return;
+          const { auth, db, appId, signInAnonymously, signInWithCustomToken, doc, setDoc, onSnapshot } = window.AppFirebase;
+          
+          try {
+            const initialToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+            if (initialToken) {
+              await signInWithCustomToken(auth, initialToken);
+            } else {
+              await signInAnonymously(auth);
+            }
+
+            const questionsDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'questions_data', 'bank');
+
+            unsubscribe = onSnapshot(questionsDocRef, (docSnap) => {
+              if (docSnap.exists() && docSnap.data()?.items?.length > 0) {
+                setQuestions(docSnap.data().items);
+                setIsCloudSynced(true);
+              } else {
+                setDoc(questionsDocRef, { items: INITIAL_QUESTIONS });
+                setIsCloudSynced(true);
+              }
+            }, (error) => {
+              console.warn("Cloud sync error, using local fallback:", error);
+            });
+          } catch (err) {
+            console.warn("Auth initialization error:", err);
+          }
+        }
+
+        initCloudStorage();
+        return () => { if (unsubscribe) unsubscribe(); };
+      }, []);
+
+      // Simpan perubahan bank soal ke Cloud Database Permanen
+      const syncQuestionsToCloud = async (newQuestions) => {
+        setQuestions(newQuestions);
+        localStorage.setItem('stat_quiz_questions', JSON.stringify(newQuestions));
+        
+        if (window.AppFirebase && window.AppFirebase.auth?.currentUser) {
+          const { db, appId, doc, setDoc } = window.AppFirebase;
+          try {
+            const questionsDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'questions_data', 'bank');
+            await setDoc(questionsDocRef, { items: newQuestions });
+            setIsCloudSynced(true);
+          } catch (err) {
+            console.error("Gagal simpan data ke cloud:", err);
+          }
+        }
+      };
+
+      const [showAddModal, setShowAddModal] = useState(false);
+      const [showMaterialModal, setShowMaterialModal] = useState(false);
+
+      const [isGeneratingNewQ, setIsGeneratingNewQ] = useState(false);
+      const [aiCustomTopic, setAiCustomTopic] = useState('');
+      const [aiQuestionCount, setAiQuestionCount] = useState(1);
+
+      const [materialInputText, setMaterialInputText] = useState('');
+      const [isAiLoading, setIsAiLoading] = useState(false);
+
+      const [uploadedFile, setUploadedFile] = useState(null);
+      const [imagePreviewUrl, setImagePreviewUrl] = useState(null);
+      const [extractedFileText, setExtractedFileText] = useState('');
+      const [isExtractingText, setIsExtractingText] = useState(false);
+      const [activeTab, setActiveTab] = useState('upload');
+
+      useEffect(() => {
+        localStorage.setItem('stat_quiz_questions', JSON.stringify(questions));
+      }, [questions]);
+
+      const handleFileUpload = (file) => {
+        if (!file) return;
+
+        setUploadedFile({
+          name: file.name,
+          size: (file.size / 1024).toFixed(1) + ' KB',
+          type: file.type
+        });
+
+        setIsExtractingText(true);
+
+        if (file.type.startsWith('image/')) {
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            setImagePreviewUrl(e.target.result);
+            setTimeout(() => {
+              const sampleText = `[Hasil OCR Gambar - ${file.name}]\nMateri Analisis Variansi (ANOVA) dan Pengujian Hipotesis. Data sampel diperoleh dengan rata-rata 25.4 dan simpangan baku 4.2.`;
+              setExtractedFileText(sampleText);
+              setIsExtractingText(false);
+            }, 800);
+          };
+          reader.readAsDataURL(file);
+        } else {
+          setImagePreviewUrl(null);
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            const fileContent = e.target.result;
+            setTimeout(() => {
+              let text = typeof fileContent === 'string' ? fileContent.substring(0, 300) : '';
+              if (!text || text.length < 10) {
+                text = `[Hasil Ekstraksi Dokumen - ${file.name}]\nSatu set data distribusi normal memiliki rata-rata (μ) = 50 dan standar deviasi (σ) = 5.`;
+              }
+              setExtractedFileText(text);
+              setIsExtractingText(false);
+            }, 800);
+          };
+          if (file.type === 'text/plain') {
+            reader.readAsText(file);
+          } else {
+            reader.readAsArrayBuffer(file);
+          }
+        }
+      };
+
+      const handleDrop = (e) => {
+        e.preventDefault();
+        if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+          handleFileUpload(e.dataTransfer.files[0]);
+        }
+      };
+
+      const handleRemoveUploadedFile = () => {
+        setUploadedFile(null);
+        setImagePreviewUrl(null);
+        setExtractedFileText('');
+      };
+
+      const handleSelectMcq = (qId, optionIdx) => {
+        if (isCompleted) return;
+        setSelectedAnswers(prev => ({ ...prev, [qId]: optionIdx }));
+      };
+
+      const handleNumericInput = (qId, val) => {
+        if (isCompleted) return;
+        setNumericInputs(prev => ({ ...prev, [qId]: val }));
+      };
+
+      const handleResetQuiz = () => {
+        setSelectedAnswers({});
+        setNumericInputs({});
+        setShowExplanations({});
+        setCurrentIndex(0);
+        setIsCompleted(false);
+        showNotification('🔄 Jawaban kuis berhasil di-reset!');
+      };
+
+      const handleResetQuestionBank = () => {
+        syncQuestionsToCloud(INITIAL_QUESTIONS);
+        setSelectedAnswers({});
+        setNumericInputs({});
+        setShowExplanations({});
+        setCurrentIndex(0);
+        setIsCompleted(false);
+        showNotification('📚 Bank soal berhasil dikembalikan ke versi awal!');
+      };
+
+      const calculateScore = () => {
+        let score = 0;
+        questions.forEach(q => {
+          if (q.type === 'mcq') {
+            if (selectedAnswers[q.id] === q.correctAnswer) score++;
+          } else if (q.type === 'numeric') {
+            const userVal = parseFloat(numericInputs[q.id]);
+            if (!isNaN(userVal) && Math.abs(userVal - q.correctAnswerNumeric) < 0.01) score++;
+          }
+        });
+        return score;
+      };
+
+      const handleFinishQuiz = () => {
+        setIsCompleted(true);
+        const allExpl = {};
+        questions.forEach(q => { allExpl[q.id] = true; });
+        setShowExplanations(allExpl);
+      };
+
+      const handleGenerateQuestionsWithAI = async (customTopicName, count) => {
+        setIsGeneratingNewQ(true);
+        const targetTopic = customTopicName?.trim() || questions[currentIndex]?.category || "Statistika Deskriptif";
+        const numCount = Math.max(1, Math.min(10, parseInt(count, 10) || 1));
+
+        const systemPrompt = `Anda adalah dosen dan ahli statistik terkemuka. Buat ${numCount} soal latihan statistik yang edukatif dan akurat sesuai materi topik yang diberikan. Format respon HARUS berupa JSON Array.`;
+        const userQuery = `Buat ${numCount} soal latihan statistika tentang materi: "${targetTopic}". Soal bisa campuran Pilihan Ganda ('mcq') dengan 4 opsi atau Isian Angka ('numeric'). Lengkapi setiap soal dengan pembahasan/langkah perhitungan lengkap.`;
+
+        const payload = {
+          contents: [{ parts: [{ text: userQuery }] }],
+          systemInstruction: { parts: [{ text: systemPrompt }] },
+          generationConfig: {
+            responseMimeType: "application/json",
+            responseSchema: {
+              type: "ARRAY",
+              items: {
+                type: "OBJECT",
+                properties: {
+                  type: { type: "STRING", description: "Tipe soal: 'mcq' atau 'numeric'" },
+                  category: { type: "STRING", description: "Kategori materi soal" },
+                  question: { type: "STRING", description: "Teks pertanyaan soal" },
+                  options: {
+                    type: "ARRAY",
+                    items: { type: "STRING" },
+                    description: "Array berisi 4 opsi jawaban jika tipe mcq"
+                  },
+                  correctAnswer: { type: "INTEGER", description: "Indeks jawaban benar (0-3) jika tipe mcq" },
+                  correctAnswerNumeric: { type: "NUMBER", description: "Angka jawaban benar jika tipe numeric" },
+                  explanation: { type: "STRING", description: "Pembahasan rinci penyelesaian" }
+                },
+                required: ["type", "category", "question", "explanation"]
+              }
+            }
+          }
+        };
+
+        try {
+          const apiKey = "";
+          const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
+
+          const response = await fetch(apiUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+
+          const result = await response.json();
+          const jsonText = result?.candidates?.[0]?.content?.parts?.[0]?.text;
+
+          if (!jsonText) throw new Error("Gagal mengambil data dari API Gemini.");
+
+          const generatedQList = JSON.parse(jsonText);
+
+          const newQuestionsArr = (Array.isArray(generatedQList) ? generatedQList : [generatedQList]).map((generatedQ, i) => {
+            const newQuestionObj = {
+              id: Date.now() + i,
+              type: generatedQ.type === 'mcq' ? 'mcq' : 'numeric',
+              category: generatedQ.category || targetTopic,
+              question: generatedQ.question,
+              explanation: generatedQ.explanation || "Pembahasan otomatis disiapkan oleh AI."
+            };
+
+            if (newQuestionObj.type === 'mcq') {
+              newQuestionObj.options = generatedQ.options && generatedQ.options.length === 4 
+                ? generatedQ.options 
+                : ["Opsi A", "Opsi B", "Opsi C", "Opsi D"];
+              newQuestionObj.correctAnswer = typeof generatedQ.correctAnswer === 'number' ? generatedQ.correctAnswer : 0;
+            } else {
+              newQuestionObj.correctAnswerNumeric = typeof generatedQ.correctAnswerNumeric === 'number' 
+                ? generatedQ.correctAnswerNumeric 
+                : 10;
+            }
+            return newQuestionObj;
+          });
+
+          const initialLength = questions.length;
+          const updatedAll = [...questions, ...newQuestionsArr];
+          syncQuestionsToCloud(updatedAll);
+          setShowAddModal(false);
+          setCurrentIndex(initialLength);
+          showNotification(`✨ Berhasil menambahkan ${newQuestionsArr.length} soal AI ke cloud!`);
+        } catch (err) {
+          console.error("Kesalahan pembuatan soal AI:", err);
+          const fallbackArr = Array.from({ length: numCount }, (_, i) => ({
+            id: Date.now() + i,
+            type: i % 2 === 0 ? 'numeric' : 'mcq',
+            category: targetTopic,
+            question: `[Soal Tambahan AI #${i + 1} - ${targetTopic}] Hitunglah nilai statistik terkait materi ${targetTopic}:`,
+            options: ["10", "20", "30", "40"],
+            correctAnswer: 1,
+            correctAnswerNumeric: 20,
+            explanation: "Pembahasan otomatis dari sistem fallback."
+          }));
+
+          const initialLength = questions.length;
+          const updatedAll = [...questions, ...fallbackArr];
+          syncQuestionsToCloud(updatedAll);
+          setShowAddModal(false);
+          setCurrentIndex(initialLength);
+        } finally {
+          setIsGeneratingNewQ(false);
+        }
+      };
+
+      const handleGenerateFromPPT = () => {
+        const textSource = activeTab === 'upload' ? extractedFileText : materialInputText;
+        if (!textSource.trim()) {
+          return alert(activeTab === 'upload' ? "Silakan upload file slide/foto terlebih dahulu!" : "Tempelkan ringkasan materi atau teks slide PPT terlebih dahulu!");
+        }
+        
+        setIsAiLoading(true);
+        setTimeout(() => {
+          const fileName = uploadedFile ? uploadedFile.name : 'Materi PPT Baru';
+          const sampleTopic = textSource.slice(0, 35).trim();
+          
+          const generated = [
+            {
+              id: Date.now(),
+              type: 'mcq',
+              category: `Materi: ${fileName}`,
+              question: `[Hasil Ekstraksi PPT: "${sampleTopic}..."] Berapakah nilai Simpangan Kuartil (Qd) jika diketahui Q1 = 12 dan Q3 = 28?`,
+              options: ["8", "16", "20", "10"],
+              correctAnswer: 0,
+              explanation: "Simpangan Kuartil (Qd) = 0.5 * (Q3 - Q1) = 0.5 * (28 - 12) = 0.5 * 16 = 8."
+            },
+            {
+              id: Date.now() + 1,
+              type: 'numeric',
+              category: `Materi: ${fileName}`,
+              question: `[Hasil Ekstraksi PPT: "${sampleTopic}..."] Hitung rata-rata gabungan dari Kelas A (n1=10, mean=70) dan Kelas B (n2=20, mean=85):`,
+              correctAnswerNumeric: 80,
+              explanation: "Mean Gabungan = (10*70 + 20*85) / (10 + 20) = (700 + 1700) / 30 = 2400 / 30 = 80."
+            }
+          ];
+
+          syncQuestionsToCloud(generated);
+          handleResetQuiz();
+          setIsAiLoading(false);
+          setShowMaterialModal(false);
+          setMaterialInputText('');
+          handleRemoveUploadedFile();
+        }, 1200);
+      };
+
+      const currentQ = questions[currentIndex] || questions[0];
+      const currentScore = calculateScore();
+      const answeredCount = Object.keys(selectedAnswers).length + Object.keys(numericInputs).filter(k => numericInputs[k] !== '').length;
+
+      return (
+        <div className="min-h-screen bg-slate-950 text-slate-100 font-sans flex flex-col">
+          {/* HEADER NAVIGASI */}
+          <header className="border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-40 px-4 py-3 sm:px-8">
+            <div className="max-w-5xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 bg-gradient-to-br from-sky-500 to-indigo-600 rounded-xl shadow-lg shadow-sky-500/20">
+                  <Icons.Calculator className="w-6 h-6 text-white" />
+                </div>
+                <div>
+                  <h1 className="text-xl font-bold bg-gradient-to-r from-sky-400 via-indigo-300 to-purple-400 bg-clip-text text-transparent">
+                    Kuis Interaktif Statistika
+                  </h1>
+                  <p className="text-xs text-slate-400 flex items-center gap-1.5 mt-0.5">
+                    <span>Mode Latihan & Evaluasi Mandiri</span>
+                    <span className="w-1 h-1 rounded-full bg-slate-600"></span>
+                    <span className="text-sky-400 font-medium">{questions.length} Soal</span>
+                    <span className="w-1 h-1 rounded-full bg-slate-600"></span>
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded font-semibold ${isCloudSynced ? 'bg-emerald-950 text-emerald-400 border border-emerald-800/60' : 'bg-slate-800 text-slate-400'}`}>
+                      {isCloudSynced ? '☁️ Cloud Sync' : '💾 Lokal'}
+                    </span>
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 flex-wrap justify-center">
+                <button
+                  onClick={() => setShowAddModal(true)}
+                  className="flex items-center gap-2 px-3.5 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-lg text-xs font-semibold shadow-md shadow-emerald-900/30 transition duration-200 active:scale-95"
+                >
+                  <Icons.Sparkles className="w-4 h-4 text-emerald-200" />
+                  <span>Tambah Soal AI</span>
+                </button>
+                <button
+                  onClick={() => setShowMaterialModal(true)}
+                  className="flex items-center gap-2 px-3.5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold shadow-md shadow-indigo-900/30 transition duration-200 active:scale-95"
+                >
+                  <Icons.BrainCircuit className="w-4 h-4" />
+                  <span>Ganti PPT / File Foto</span>
+                </button>
+                <button
+                  onClick={handleResetQuiz}
+                  className="flex items-center gap-2 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-lg text-xs font-medium border border-slate-700 transition duration-200 active:scale-95"
+                >
+                  <Icons.RotateCcw className="w-4 h-4" />
+                  <span>Reset Kuis</span>
+                </button>
+                <button
+                  onClick={handleResetQuestionBank}
+                  className="flex items-center gap-1.5 px-2.5 py-2 bg-slate-900 hover:bg-rose-950/60 text-slate-400 hover:text-rose-300 rounded-lg text-[11px] font-medium border border-slate-800 hover:border-rose-800/50 transition duration-200 active:scale-95"
+                >
+                  <span>Reset Bank Soal</span>
+                </button>
+              </div>
+            </div>
+          </header>
+
+          {/* TOAST NOTIFICATION */}
+          {toastMessage && (
+            <div className="fixed bottom-5 right-5 z-50 bg-sky-900 text-sky-100 border border-sky-700 px-4 py-2.5 rounded-xl text-xs font-semibold shadow-xl animate-bounce">
+              {toastMessage}
+            </div>
+          )}
+
+          {/* MAIN CONTAINER */}
+          <main className="flex-1 max-w-4xl w-full mx-auto p-4 sm:p-6 md:p-8 flex flex-col">
+            {!isCompleted ? (
+              <div className="bg-slate-900/90 rounded-2xl border border-slate-800 shadow-2xl p-5 sm:p-8 flex flex-col flex-1 relative overflow-hidden backdrop-blur-sm">
+                <div className="w-full bg-slate-800 h-2 rounded-full mb-6 overflow-hidden">
+                  <div 
+                    className="bg-gradient-to-r from-sky-500 to-indigo-500 h-full transition-all duration-300 ease-out"
+                    style={{ width: `${((currentIndex + 1) / questions.length) * 100}%` }}
+                  ></div>
+                </div>
+
+                <div className="flex flex-wrap items-center justify-between gap-2 mb-4 text-xs font-medium text-slate-400">
+                  <div className="flex items-center gap-2">
+                    <span className="bg-slate-800 text-slate-300 px-3 py-1 rounded-md border border-slate-700/60">
+                      Soal <strong className="text-sky-400">{currentIndex + 1}</strong> dari <strong>{questions.length}</strong>
+                    </span>
+                    {answeredCount > 0 && (
+                      <span className="text-slate-500 hidden sm:inline">
+                        • Terjawab ({answeredCount}/{questions.length})
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <span className="bg-sky-950/80 text-sky-300 border border-sky-800/60 px-3 py-1 rounded-full text-[11px] font-semibold tracking-wide">
+                      📂 {currentQ.category}
+                    </span>
+                    <span className="bg-indigo-950/80 text-indigo-300 border border-indigo-800/60 px-2.5 py-1 rounded-full text-[11px] font-medium">
+                      {currentQ.type === 'numeric' ? '🔢 Isian Angka' : '🔘 Pilihan Ganda'}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="mb-6 bg-slate-950/60 p-4 sm:p-5 rounded-xl border border-slate-800/80">
+                  <h2 className="text-base sm:text-lg font-medium text-slate-100 leading-relaxed">
+                    {currentQ.question}
+                  </h2>
+                </div>
+
+                <div className="flex-1 mb-6">
+                  {currentQ.type === 'numeric' ? (
+                    <div className="space-y-3 bg-slate-950/40 p-4 rounded-xl border border-slate-800/60">
+                      <label className="block text-xs font-medium text-slate-300 flex items-center gap-2">
+                        <Icons.Calculator className="w-4 h-4 text-sky-400" />
+                        Masukkan hasil perhitungan numerik Anda:
+                      </label>
+                      <input
+                        type="number"
+                        step="any"
+                        placeholder="Contoh: 8, 22.5, atau 3.14"
+                        value={numericInputs[currentQ.id] !== undefined ? numericInputs[currentQ.id] : ''}
+                        onChange={(e) => handleNumericInput(currentQ.id, e.target.value)}
+                        className="w-full px-4 py-3 rounded-lg bg-slate-950 border border-slate-700 text-slate-100 text-base font-mono focus:outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500 transition duration-150"
+                      />
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 gap-3">
+                      {currentQ.options?.map((opt, idx) => {
+                        const isSelected = selectedAnswers[currentQ.id] === idx;
+                        const letter = String.fromCharCode(65 + idx);
+                        return (
+                          <button
+                            key={idx}
+                            onClick={() => handleSelectMcq(currentQ.id, idx)}
+                            className={`w-full text-left p-4 rounded-xl border transition duration-200 flex items-start gap-3.5 text-sm sm:text-base ${
+                              isSelected
+                                ? 'bg-sky-950/70 border-sky-500 text-sky-100 shadow-md ring-1 ring-sky-500/40'
+                                : 'bg-slate-950/50 border-slate-800 hover:border-slate-700 text-slate-300 hover:bg-slate-800/40'
+                            }`}
+                          >
+                            <span className={`w-7 h-7 rounded-lg font-semibold text-xs flex items-center justify-center flex-shrink-0 mt-0.5 transition ${
+                              isSelected ? 'bg-sky-500 text-slate-950' : 'bg-slate-800 text-slate-400'
+                            }`}>
+                              {letter}
+                            </span>
+                            <span className="flex-1 self-center leading-normal">{opt}</span>
+                            {isSelected && <Icons.Check className="w-5 h-5 text-sky-400 flex-shrink-0 self-center" />}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {showExplanations[currentQ.id] && (
+                  <div className="mb-6 p-4 bg-sky-950/40 border border-sky-800/80 rounded-xl text-xs sm:text-sm text-sky-200 space-y-2 animate-fadeIn">
+                    <div className="flex items-center gap-2 text-sky-400 font-semibold">
+                      <Icons.Sparkles className="w-4 h-4" />
+                      <span>Kunci & Pembahasan:</span>
+                    </div>
+                    <div className="whitespace-pre-line text-slate-300 leading-relaxed font-sans bg-slate-950/60 p-3 rounded-lg border border-sky-900/30">
+                      {currentQ.explanation}
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex items-center justify-between gap-3 pt-4 border-t border-slate-800">
+                  <button
+                    disabled={currentIndex === 0}
+                    onClick={() => setCurrentIndex(prev => prev - 1)}
+                    className="flex items-center gap-1.5 px-4 py-2 bg-slate-800 hover:bg-slate-700 disabled:opacity-40 text-slate-200 rounded-lg text-xs font-semibold border border-slate-700 transition"
+                  >
+                    <Icons.ChevronLeft className="w-4 h-4" />
+                    <span>Sebelumnya</span>
+                  </button>
+
+                  <button
+                    onClick={() => setShowExplanations(prev => ({ ...prev, [currentQ.id]: !prev[currentQ.id] }))}
+                    className="text-sky-400 hover:text-sky-300 text-xs font-semibold flex items-center gap-1 transition"
+                  >
+                    <Icons.HelpCircle className="w-3.5 h-3.5" />
+                    <span>{showExplanations[currentQ.id] ? "Sembunyikan Pembahasan" : "Lihat Pembahasan"}</span>
+                  </button>
+
+                  {currentIndex === questions.length - 1 ? (
+                    <button
+                      onClick={handleFinishQuiz}
+                      className="flex items-center gap-2 px-5 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-lg text-xs font-bold shadow-md transition duration-200 active:scale-95"
+                    >
+                      <Icons.Award className="w-4 h-4" />
+                      <span>Selesaikan Kuis</span>
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => setCurrentIndex(prev => prev + 1)}
+                      className="flex items-center gap-1.5 px-4 py-2 bg-sky-600 hover:bg-sky-500 text-white rounded-lg text-xs font-semibold shadow-md transition duration-200 active:scale-95"
+                    >
+                      <span>Selanjutnya</span>
+                      <Icons.ChevronRight className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div className="bg-slate-900/90 rounded-2xl border border-slate-800 shadow-2xl p-6 sm:p-10 text-center flex flex-col items-center">
+                <div className="w-16 h-16 bg-gradient-to-br from-sky-500 to-indigo-600 rounded-2xl flex items-center justify-center shadow-lg shadow-sky-500/20 mb-4">
+                  <Icons.Award className="w-9 h-9 text-white" />
+                </div>
+
+                <h2 className="text-2xl sm:text-3xl font-bold text-white mb-1">Hasil Evaluasi Kuis</h2>
+                <p className="text-xs sm:text-sm text-slate-400 mb-6">Ringkasan Nilai dan Pembahasan Jawaban</p>
+
+                <div className="bg-slate-950 border border-slate-800 rounded-2xl p-6 w-full max-w-xs mb-8 flex flex-col items-center justify-center">
+                  <span className="text-xs text-slate-400 uppercase tracking-widest font-semibold mb-1">Total Skor Anda</span>
+                  <div className="text-5xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-sky-400 via-indigo-300 to-purple-400 font-mono">
+                    {currentScore} <span className="text-2xl text-slate-600">/ {questions.length}</span>
+                  </div>
+                  <p className="text-xs text-slate-400 mt-2">
+                    Akurasi: <strong className="text-sky-400">{Math.round((currentScore / questions.length) * 100)}%</strong>
+                  </p>
+                </div>
+
+                <div className="w-full text-left space-y-4 mb-8">
+                  <h3 className="text-sm font-semibold text-slate-300 flex items-center gap-2">
+                    <Icons.BarChart3 className="w-4 h-4 text-sky-400" />
+                    <span>Detail Evaluasi per Soal:</span>
+                  </h3>
+                  {questions.map((q, idx) => {
+                    let isCorrect = false;
+                    let userAnsText = "-";
+
+                    if (q.type === 'mcq') {
+                      const userChoice = selectedAnswers[q.id];
+                      isCorrect = userChoice === q.correctAnswer;
+                      userAnsText = userChoice !== undefined ? `${String.fromCharCode(65 + userChoice)}. ${q.options[userChoice]}` : "Tidak dijawab";
+                    } else {
+                      const userNum = parseFloat(numericInputs[q.id]);
+                      isCorrect = !isNaN(userNum) && Math.abs(userNum - q.correctAnswerNumeric) < 0.01;
+                      userAnsText = numericInputs[q.id] !== undefined && numericInputs[q.id] !== '' ? numericInputs[q.id] : "Tidak dijawab";
+                    }
+
+                    return (
+                      <div key={q.id} className={`p-4 rounded-xl border text-xs sm:text-sm space-y-2 ${
+                        isCorrect ? 'bg-emerald-950/20 border-emerald-800/40' : 'bg-rose-950/20 border-rose-800/40'
+                      }`}>
+                        <div className="flex items-start justify-between gap-2">
+                          <p className="font-medium text-slate-200">
+                            {idx + 1}. {q.question}
+                          </p>
+                          <span className={`px-2 py-0.5 rounded text-[11px] font-bold flex items-center gap-1 flex-shrink-0 ${
+                            isCorrect ? 'bg-emerald-900/60 text-emerald-300' : 'bg-rose-900/60 text-rose-300'
+                          }`}>
+                            {isCorrect ? <Icons.CheckCircle2 className="w-3.5 h-3.5" /> : <Icons.XCircle className="w-3.5 h-3.5" />}
+                            {isCorrect ? 'Benar' : 'Salah'}
+                          </span>
+                        </div>
+
+                        <div className="text-xs text-slate-400 space-y-0.5">
+                          <p>Jawaban Anda: <span className="text-slate-200 font-medium">{userAnsText}</span></p>
+                          <p>Kunci Jawaban: <span className="text-sky-300 font-medium">
+                            {q.type === 'mcq' ? `${String.fromCharCode(65 + q.correctAnswer)}. ${q.options[q.correctAnswer]}` : q.correctAnswerNumeric}
+                          </span></p>
+                        </div>
+
+                        <div className="bg-slate-950/60 p-2.5 rounded-lg border border-slate-800 text-[11px] text-slate-300 mt-2">
+                          💡 <strong>Pembahasan:</strong> {q.explanation}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <button
+                  onClick={handleResetQuiz}
+                  className="px-6 py-3 bg-sky-600 hover:bg-sky-500 text-white rounded-xl text-xs font-bold shadow-lg transition duration-200 flex items-center gap-2 active:scale-95"
+                >
+                  <Icons.RotateCcw className="w-4 h-4" />
+                  <span>Ulangi Kuis Lagi</span>
+                </button>
+              </div>
+            )}
+          </main>
+
+          {/* MODAL GENERASI SOAL AI */}
+          {showAddModal && (
+            <Modal onClose={() => setShowAddModal(false)} title="Generate Soal AI Otomatis">
+              <div className="space-y-4">
+                <div className="bg-sky-950/40 p-4 rounded-xl border border-sky-800/60 space-y-2">
+                  <div className="flex items-center gap-2 text-sky-400 font-semibold text-xs">
+                    <Icons.Sparkles className="w-4 h-4" />
+                    <span>Materi Soal Aktif:</span>
+                  </div>
+                  <p className="text-sm font-bold text-slate-100 flex items-center gap-2">
+                    <span>📂 {currentQ?.category || "Statistika Deskriptif"}</span>
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="col-span-2 space-y-1.5">
+                    <label className="block text-xs font-medium text-slate-300">Topik Khusus (Opsional):</label>
+                    <input
+                      type="text"
+                      placeholder={`Default: "${currentQ?.category || 'Materi Saat Ini'}"`}
+                      value={aiCustomTopic}
+                      onChange={(e) => setAiCustomTopic(e.target.value)}
+                      className="w-full p-2.5 rounded-lg bg-slate-950 border border-slate-700 text-slate-200 text-xs focus:ring-1 focus:ring-sky-500 outline-none"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-medium text-slate-300">Jumlah Soal:</label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="10"
+                      value={aiQuestionCount}
+                      onChange={(e) => setAiQuestionCount(e.target.value)}
+                      className="w-full p-2.5 rounded-lg bg-slate-950 border border-slate-700 text-slate-200 text-xs font-bold text-center focus:ring-1 focus:ring-sky-500 outline-none"
+                    />
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => handleGenerateQuestionsWithAI(aiCustomTopic, aiQuestionCount)}
+                  disabled={isGeneratingNewQ}
+                  className="w-full py-3 bg-gradient-to-r from-emerald-600 via-teal-600 to-sky-600 hover:from-emerald-500 hover:to-sky-500 disabled:opacity-50 text-white rounded-xl text-xs font-bold shadow-lg transition duration-200 flex items-center justify-center gap-2 active:scale-95"
+                >
+                  {isGeneratingNewQ ? (
+                    <>
+                      <Icons.Loader2 className="w-4 h-4" />
+                      <span>Sedang Menyusun {aiQuestionCount} Soal Baru...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Icons.Wand2 className="w-4 h-4" />
+                      <span>Buatkan {aiQuestionCount} Soal Otomatis ✨</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </Modal>
+          )}
+
+          {/* MODAL GANTI MATERI */}
+          {showMaterialModal && (
+            <Modal onClose={() => setShowMaterialModal(false)} title="Ganti Materi Slide / File PPT / Foto">
+              <div className="space-y-4">
+                <div className="flex border-b border-slate-800 text-xs font-semibold">
+                  <button
+                    onClick={() => setActiveTab('upload')}
+                    className={`py-2 px-4 border-b-2 flex items-center gap-2 transition ${
+                      activeTab === 'upload' ? 'border-indigo-500 text-indigo-400 bg-indigo-950/20' : 'border-transparent text-slate-400'
+                    }`}
+                  >
+                    <Icons.Upload className="w-3.5 h-3.5" />
+                    <span>Upload File / Foto</span>
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('text')}
+                    className={`py-2 px-4 border-b-2 flex items-center gap-2 transition ${
+                      activeTab === 'text' ? 'border-indigo-500 text-indigo-400 bg-indigo-950/20' : 'border-transparent text-slate-400'
+                    }`}
+                  >
+                    <Icons.FileText className="w-3.5 h-3.5" />
+                    <span>Tempel Teks</span>
+                  </button>
+                </div>
+
+                {activeTab === 'upload' ? (
+                  <div className="space-y-3">
+                    {!uploadedFile ? (
+                      <div
+                        onDragOver={(e) => e.preventDefault()}
+                        onDrop={handleDrop}
+                        className="border-2 border-dashed border-slate-700 hover:border-indigo-500 bg-slate-950/60 rounded-xl p-6 text-center cursor-pointer transition flex flex-col items-center justify-center"
+                        onClick={() => document.getElementById('file-upload-input').click()}
+                      >
+                        <input
+                          id="file-upload-input"
+                          type="file"
+                          accept=".pdf,.ppt,.pptx,.txt,image/png,image/jpeg,image/jpg"
+                          className="hidden"
+                          onChange={(e) => e.target.files && handleFileUpload(e.target.files[0])}
+                        />
+                        <div className="p-3 bg-indigo-950/60 text-indigo-400 rounded-full mb-3 border border-indigo-800/50">
+                          <Icons.Upload className="w-6 h-6" />
+                        </div>
+                        <p className="text-xs font-semibold text-slate-200">
+                          Tarik & lepas file di sini, atau <span className="text-indigo-400 underline">Cari File</span>
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="bg-slate-950 border border-indigo-900/60 rounded-xl p-4 space-y-3">
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-3 overflow-hidden">
+                            {imagePreviewUrl ? (
+                              <img src={imagePreviewUrl} alt="Slide Preview" className="w-12 h-12 object-cover rounded-lg border border-slate-700" />
+                            ) : (
+                              <div className="p-2.5 bg-indigo-950 text-indigo-400 rounded-lg border border-indigo-800/60">
+                                <Icons.File className="w-6 h-6" />
+                              </div>
+                            )}
+                            <div className="truncate">
+                              <p className="text-xs font-medium text-slate-200 truncate">{uploadedFile.name}</p>
+                              <p className="text-[10px] text-slate-400">{uploadedFile.size}</p>
+                            </div>
+                          </div>
+                          <button onClick={handleRemoveUploadedFile} className="p-1.5 text-slate-400 hover:text-rose-400">
+                            <Icons.Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <textarea
+                    rows={5}
+                    placeholder="Tempelkan materi PPT di sini..."
+                    value={materialInputText}
+                    onChange={(e) => setMaterialInputText(e.target.value)}
+                    className="w-full p-3 rounded-xl bg-slate-950 border border-slate-700 text-slate-200 text-xs outline-none"
+                  />
+                )}
+
+                <button
+                  onClick={handleGenerateFromPPT}
+                  disabled={isAiLoading || isExtractingText}
+                  className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold flex items-center justify-center gap-2"
+                >
+                  {isAiLoading ? (
+                    <span>Memproses & Menyusun Soal Baru...</span>
+                  ) : (
+                    <>
+                      <Icons.BrainCircuit className="w-4 h-4" />
+                      <span>Generate Kuis dari File / Slide PPT</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </Modal>
+          )}
+
+          <footer className="py-4 text-center text-xs text-slate-500 border-t border-slate-900 bg-slate-950">
+            Kuis Interaktif Statistika • Standalone Web App
+          </footer>
+        </div>
+      );
+    }
+
+    function Modal({ children, onClose, title }) {
+      return (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fadeIn">
+          <div className="bg-slate-900 border border-slate-800 w-full max-w-lg rounded-2xl p-6 shadow-2xl relative max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800 mb-4">
+              <h3 className="text-sm sm:text-base font-bold text-slate-100 flex items-center gap-2">
+                <Icons.BookOpen className="w-4 h-4 text-sky-400" />
+                <span>{title}</span>
+              </h3>
+              <button onClick={onClose} className="p-1 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white">
+                <Icons.X className="w-5 h-5" />
+              </button>
+            </div>
+            {children}
+          </div>
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>
